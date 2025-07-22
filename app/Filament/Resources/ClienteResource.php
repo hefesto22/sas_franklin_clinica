@@ -1,0 +1,103 @@
+<?php
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\ClienteResource\Pages;
+use App\Models\Cliente;
+use App\Models\HistorialPaciente;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Filament\Tables\Actions\ActionGroup;
+use Filament\Tables\Actions\ViewAction;
+use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\Action;
+
+class ClienteResource extends Resource
+{
+    protected static ?string $model = Cliente::class;
+
+    protected static ?string $navigationIcon = 'heroicon-o-user-group';
+    protected static ?string $navigationGroup = 'Gestión de Clientes';
+    protected static ?string $label = 'Cliente';
+    protected static ?string $pluralLabel = 'Clientes';
+
+    public static function form(Form $form): Form
+    {
+        return $form
+            ->schema([
+                Forms\Components\TextInput::make('nombre')
+                    ->required()
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('dni')
+                    ->required()
+                    ->maxLength(50)
+                    ->unique(ignoreRecord: true),
+                Forms\Components\TextInput::make('telefono')
+                    ->required()
+                    ->maxLength(30),
+                Forms\Components\DatePicker::make('fecha_nacimiento')
+                    ->label('Fecha de nacimiento'),
+                Forms\Components\Textarea::make('observaciones')
+                    ->rows(3),
+                Forms\Components\Select::make('estado')
+                    ->required()
+                    ->options([
+                        'activo' => 'Activo',
+                        'inactivo' => 'Inactivo',
+                    ])
+                    ->default('activo'),
+            ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('nombre')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('telefono')->sortable(),
+                Tables\Columns\TextColumn::make('estado')
+                    ->badge()
+                    ->color(fn (string $state) => $state === 'activo' ? 'success' : 'gray'),
+                Tables\Columns\TextColumn::make('createdBy.name')->label('Creado por')->sortable(),
+                Tables\Columns\TextColumn::make('created_at')->label('Registrado')->date()->sortable(),
+            ])
+            ->actions([
+                ActionGroup::make([
+                    ViewAction::make(),
+                    EditAction::make(),
+                    DeleteAction::make(),
+                    Action::make('verHistorial')
+                        ->label('Ver historial')
+                        ->icon('heroicon-o-clock')
+                        ->modalHeading('Historial del paciente')
+                        ->modalSubmitAction(false)
+                        ->modalCancelActionLabel('Cerrar')
+                        ->modalContent(fn (Cliente $record) => view('filament.modals.historial-cliente', [
+                            'historial' => HistorialPaciente::where('paciente_id', $record->id)
+                                ->latest()
+                                ->take(10)
+                                ->get(),
+                        ])),
+                ]),
+            ])
+            ->defaultSort('created_at', 'desc');
+    }
+
+    public static function getRelations(): array
+    {
+        return [];
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListClientes::route('/'),
+            'create' => Pages\CreateCliente::route('/create'),
+            'edit' => Pages\EditCliente::route('/{record}/edit'),
+        ];
+    }
+}

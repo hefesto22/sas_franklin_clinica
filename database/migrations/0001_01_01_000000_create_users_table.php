@@ -15,6 +15,7 @@ return new class extends Migration
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
             $table->string('name')->unique(); // Ej: Admin, Vendedor, Cliente, etc.
+            $table->boolean('estado')->default(true); // Activo o inactivo
             $table->timestamps();
         });
 
@@ -25,14 +26,22 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->string('telefono')->nullable();
+            $table->text('direccion')->nullable();
+            $table->string('avatar')->nullable(); // Foto de perfil
+            $table->timestamp('last_login_at')->nullable(); // Último inicio de sesión
+            $table->boolean('estado')->default(true); // Activo o inactivo
             $table->rememberToken();
             $table->timestamps();
 
-            // Campo de relación al rol
+            // Relación al rol
             $table->foreignId('role_id')->constrained('roles')->onDelete('cascade');
 
-            // Campo de relación a quien creó el usuario
+            // Quién creó el usuario
             $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
+
+            // Quién lo actualizó
+            $table->foreignId('updated_by')->nullable()->constrained('users')->onDelete('set null');
         });
 
         // Tabla de tokens de reseteo de contraseña

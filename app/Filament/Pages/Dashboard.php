@@ -14,4 +14,10 @@ class Dashboard extends Page
     {
         return '';
     }
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            \App\Filament\Widgets\CalendarWidget::class,
+        ];
+    }
 }

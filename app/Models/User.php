@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -15,20 +17,26 @@ class User extends Authenticatable
     /**
      * The attributes that are mass assignable.
      *
-     * @var list<string>
+     * @var array<string>
      */
     protected $fillable = [
         'name',
         'email',
         'password',
         'role_id',
-        'created_by', // <-- agregado
+        'telefono',
+        'direccion',
+        'avatar',
+        'estado',
+        'created_by',
+        'updated_by',
+        'last_login_at',
     ];
 
     /**
      * The attributes that should be hidden for serialization.
      *
-     * @var list<string>
+     * @var array<string>
      */
     protected $hidden = [
         'password',
@@ -36,7 +44,7 @@ class User extends Authenticatable
     ];
 
     /**
-     * Get the attributes that should be cast.
+     * The attributes that should be cast to native types.
      *
      * @return array<string, string>
      */
@@ -44,31 +52,49 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_login_at' => 'datetime',
+            'estado' => 'boolean',
             'password' => 'hashed',
         ];
     }
 
     /**
-     * Get the role of the user.
+     * Relación: Rol del usuario.
      */
-    public function role()
+    public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
     }
 
     /**
-     * Get the user who created this user.
+     * Relación: Usuario que lo creó.
      */
-    public function createdBy()
+    public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
     /**
-     * (Optional) Get the users created by this user.
+     * Relación: Usuario que lo actualizó.
      */
-    public function createdUsers()
+    public function updatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /**
+     * Relación: Usuarios que ha creado.
+     */
+    public function createdUsers(): HasMany
     {
         return $this->hasMany(User::class, 'created_by');
+    }
+
+    /**
+     * Relación: Usuarios que ha actualizado.
+     */
+    public function updatedUsers(): HasMany
+    {
+        return $this->hasMany(User::class, 'updated_by');
     }
 }
