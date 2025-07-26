@@ -8,6 +8,7 @@ use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
+use App\Models\ClienteImagen;
 
 class CreateCliente extends CreateRecord
 {
@@ -15,6 +16,7 @@ class CreateCliente extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+
         $data['created_by'] = Auth::id();
         $data['updated_by'] = Auth::id();
 
@@ -28,11 +30,22 @@ class CreateCliente extends CreateRecord
                 ->label('Guardar')
                 ->action(function () {
                     $data = $this->form->getState();
+                    $imagenes = $this->form->getRawState()['imagenes_upload'] ?? [];
+
+                    unset($data['imagenes_upload']);
 
                     $data['created_by'] = Auth::id();
                     $data['updated_by'] = Auth::id();
 
+                    // Asignar el registro a this->record
                     $this->record = Cliente::create($data);
+
+                    foreach ($imagenes as $imagen) {
+                        ClienteImagen::create([
+                            'cliente_id' => $this->record->id,
+                            'path' => $imagen,
+                        ]);
+                    }
 
                     Notification::make()
                         ->title('Cliente creado correctamente')
@@ -41,6 +54,8 @@ class CreateCliente extends CreateRecord
 
                     $this->redirect(ClienteResource::getUrl('index'));
                 }),
+
+
 
             Action::make('save_create_another')
                 ->label('Guardar y crear otro')

@@ -144,9 +144,11 @@ class CalendarWidget extends FullCalendarWidget
                     ->visible(fn($record) => $record && $record->estado === 'Confirmado')
                     ->requiresConfirmation()
                     ->action(function ($record) {
-                        $nombreServicio = optional($record->servicio)->nombre ?? 'Servicio no especificado';
+                        $servicio = $record->servicios->first(); // Solo tomamos el primer servicio por simplicidad
+                        $nombreServicio = $servicio?->nombre ?? 'Servicio no especificado';
+                        $precioServicio = $servicio?->precio ?? 0;
 
-                        // Guardar historial
+                        // Guardar historial del paciente
                         \App\Models\HistorialPaciente::create([
                             'paciente_id' => $record->cliente_id,
                             'evento_id' => $record->id,
@@ -155,19 +157,28 @@ class CalendarWidget extends FullCalendarWidget
                             'created_by' => \Illuminate\Support\Facades\Auth::id() ?? 1,
                         ]);
 
+                        // Registrar en cliente_actividades
+                        \App\Models\ClienteActividad::create([
+                            'cliente_id' => $record->cliente_id,
+                            'fecha' => now(),
+                            'actividad' => $nombreServicio,
+                            'pago' => $precioServicio,
+                        ]);
+
                         // Eliminar evento
                         $record->delete();
 
                         // Notificación
                         \Filament\Notifications\Notification::make()
                             ->title('Asistencia registrada')
-                            ->body("El paciente fue marcado como presente y se eliminó la cita actual.")
+                            ->body("El paciente fue marcado como presente. Se registró el servicio y se eliminó la cita.")
                             ->success()
                             ->send();
 
-                        // Actualizar calendario en tiempo real
+                        // Actualizar calendario
                         $this->dispatch('refreshCalendar');
                     }),
+
 
                 //aca iniciamos no se presento
 

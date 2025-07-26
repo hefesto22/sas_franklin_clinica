@@ -3,6 +3,8 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ClienteResource\Pages;
+use App\Filament\Resources\ClienteResource\RelationManagers\ClienteActividadRelationManager;
+use App\Filament\Resources\ClienteResource\RelationManagers\ClienteImagenRelationManager;
 use App\Models\Cliente;
 use App\Models\HistorialPaciente;
 use Filament\Forms;
@@ -27,30 +29,81 @@ class ClienteResource extends Resource
 
     public static function form(Form $form): Form
     {
-        return $form
-            ->schema([
-                Forms\Components\TextInput::make('nombre')
-                    ->required()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('dni')
-                    ->required()
-                    ->maxLength(50)
-                    ->unique(ignoreRecord: true),
-                Forms\Components\TextInput::make('telefono')
-                    ->required()
-                    ->maxLength(30),
-                Forms\Components\DatePicker::make('fecha_nacimiento')
-                    ->label('Fecha de nacimiento'),
-                Forms\Components\Textarea::make('observaciones')
-                    ->rows(3),
-                Forms\Components\Select::make('estado')
-                    ->required()
-                    ->options([
-                        'activo' => 'Activo',
-                        'inactivo' => 'Inactivo',
-                    ])
-                    ->default('activo'),
-            ]);
+        return $form->schema([
+            Forms\Components\TextInput::make('nombre')
+                ->required()
+                ->maxLength(255),
+
+            Forms\Components\TextInput::make('dni')
+                ->required()
+                ->maxLength(50)
+                ->unique(ignoreRecord: true),
+
+            Forms\Components\TextInput::make('edad')
+                ->numeric()
+                ->minValue(0)
+                ->maxValue(120)
+                ->nullable(),
+
+            Forms\Components\DatePicker::make('fecha_nacimiento')
+                ->label('Fecha de nacimiento')
+                ->nullable(),
+
+            Forms\Components\Select::make('genero')
+                ->options([
+                    'masculino' => 'Masculino',
+                    'femenino' => 'Femenino',
+                    'otro' => 'Otro',
+                ])
+                ->nullable(),
+
+            Forms\Components\TextInput::make('telefono')
+                ->maxLength(30)
+                ->nullable(),
+
+            Forms\Components\TextInput::make('direccion')
+                ->maxLength(255)
+                ->nullable(),
+
+            Forms\Components\TextInput::make('ocupacion')
+                ->maxLength(255)
+                ->nullable(),
+
+            Forms\Components\Textarea::make('motivo_consulta')
+                ->label('Motivo de consulta')
+                ->rows(2)
+                ->nullable(),
+
+            Forms\Components\Textarea::make('antecedentes')
+                ->rows(2)
+                ->nullable(),
+
+            Forms\Components\Textarea::make('alergias')
+                ->rows(2)
+                ->nullable(),
+
+            Forms\Components\Select::make('estado')
+                ->required()
+                ->options([
+                    'activo' => 'Activo',
+                    'inactivo' => 'Inactivo',
+                ])
+                ->default('activo'),
+
+            Forms\Components\FileUpload::make('imagenes_upload')
+                ->label('Imágenes del cliente')
+                ->multiple()
+                ->image()
+                ->directory('clientes')
+                ->preserveFilenames()
+                ->visibility('public')
+                ->maxFiles(7)
+                ->columnSpanFull()
+                ->helperText('Puedes subir hasta 7 imágenes (opcional)')
+                ->dehydrated(false), // <- evita que se guarde en la tabla principal
+
+
+        ]);
     }
 
     public static function table(Table $table): Table
@@ -58,10 +111,11 @@ class ClienteResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('nombre')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('telefono')->sortable(),
+                Tables\Columns\TextColumn::make('dni')->searchable(),
+                Tables\Columns\TextColumn::make('telefono')->sortable()->toggleable(),
                 Tables\Columns\TextColumn::make('estado')
                     ->badge()
-                    ->color(fn (string $state) => $state === 'activo' ? 'success' : 'gray'),
+                    ->color(fn(string $state) => $state === 'activo' ? 'success' : 'gray'),
                 Tables\Columns\TextColumn::make('createdBy.name')->label('Creado por')->sortable(),
                 Tables\Columns\TextColumn::make('created_at')->label('Registrado')->date()->sortable(),
             ])
@@ -76,7 +130,7 @@ class ClienteResource extends Resource
                         ->modalHeading('Historial del paciente')
                         ->modalSubmitAction(false)
                         ->modalCancelActionLabel('Cerrar')
-                        ->modalContent(fn (Cliente $record) => view('filament.modals.historial-cliente', [
+                        ->modalContent(fn(Cliente $record) => view('filament.modals.historial-cliente', [
                             'historial' => HistorialPaciente::where('paciente_id', $record->id)
                                 ->latest()
                                 ->take(10)
@@ -89,7 +143,10 @@ class ClienteResource extends Resource
 
     public static function getRelations(): array
     {
-        return [];
+        return [
+            ClienteActividadRelationManager::class,
+            ClienteImagenRelationManager::class,
+        ];
     }
 
     public static function getPages(): array
