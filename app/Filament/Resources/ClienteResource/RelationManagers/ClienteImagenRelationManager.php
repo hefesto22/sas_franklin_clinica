@@ -7,6 +7,8 @@ use Filament\Tables;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
 use Filament\Resources\RelationManagers\RelationManager;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\HtmlString;
 
 class ClienteImagenRelationManager extends RelationManager
 {
@@ -49,6 +51,21 @@ class ClienteImagenRelationManager extends RelationManager
                 Tables\Actions\CreateAction::make()->label('Agregar imagen'),
             ])
             ->actions([
+                Tables\Actions\Action::make('ver')
+                    ->label('Ver')
+                    ->icon('heroicon-o-magnifying-glass-plus')
+                    ->color('gray')
+                    ->modalHeading('Vista previa')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalContent(function ($record) {
+                        $src = Storage::url($record->path);
+                        return new HtmlString(
+                            '<div class="p-2">
+                            <img src="' . $src . '" alt="Vista previa" class="max-w-full h-auto rounded-xl shadow-lg mx-auto">
+                        </div>'
+                        );
+                    }),
                 Tables\Actions\DeleteAction::make()->label('Borrar')->color('danger'),
             ]);
     }

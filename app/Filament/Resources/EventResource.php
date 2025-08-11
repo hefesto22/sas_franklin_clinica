@@ -18,6 +18,8 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\Action;
 use Illuminate\Support\Collection;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 
 class EventResource extends Resource
 {
@@ -73,30 +75,29 @@ class EventResource extends Resource
                 ->label('Especialidades')
                 ->multiple()
                 ->searchable()
-                ->options(Especialidad::pluck('nombre', 'id'))
+                ->options(\App\Models\Especialidad::pluck('nombre', 'id'))
                 ->required()
                 ->preload()
                 ->reactive()
-                ->relationship('especialidades', 'nombre'),
+                ->afterStateUpdated(fn(Set $set) => $set('servicios', [])), // limpia servicios
 
-            // Campo de servicios dependiente de especialidades
+            // Servicios filtrados por especialidades seleccionadas
             Forms\Components\Select::make('servicios')
                 ->label('Servicios')
                 ->multiple()
                 ->searchable()
-                ->required()
                 ->preload()
-                ->options(function (callable $get): Collection {
-                    $especialidades = $get('especialidades') ?? [];
-                    return Servicio::when(
-                        !empty($especialidades),
-                        fn($query) =>
-                        $query->whereIn('especialidad_id', $especialidades)
-                    )->pluck('nombre', 'id');
-                })
-                ->relationship('servicios', 'nombre')
-                ->disabled(fn(callable $get) => empty($get('especialidades')))
-                ->reactive(),
+                ->required()
+                ->reactive()
+                ->disabled(fn(Get $get) => empty($get('especialidades')))
+                ->relationship(
+                    name: 'servicios',
+                    titleAttribute: 'nombre',
+                    modifyQueryUsing: function ($query, Get $get) {
+                        $ids = $get('especialidades') ?: [-1];   // -1 para no devolver nada si está vacío
+                        $query->whereIn('especialidad_id', $ids);
+                    }
+                ),
 
             Forms\Components\Select::make('consultorio_id')
                 ->label('Consultorio')
@@ -109,7 +110,18 @@ class EventResource extends Resource
             Forms\Components\DatePicker::make('start_date')
                 ->label('Fecha')
                 ->required()
-                ->reactive(),
+                ->reactive()
+                ->native(false)
+                ->minDate(now())
+                ->rule(function () {
+                    return function (string $attribute, $value, $fail) {
+                        $fecha = \Carbon\Carbon::parse($value);
+                        if ($fecha->isSunday()) {
+                            $fail('Los domingos no se trabaja. Por favor seleccione otro día.');
+                        }
+                    };
+                }),
+
 
             Forms\Components\Select::make('start_time')
                 ->label('Hora disponible')
@@ -123,7 +135,7 @@ class EventResource extends Resource
                 ->afterStateUpdated(function ($state, callable $set) {
                     if ($state) {
                         $hora = \Carbon\Carbon::createFromFormat('H:i', $state);
-                        $nuevaHora = $hora->addMinutes(20)->format('H:i');
+                        $nuevaHora = $hora->addMinutes(30)->format('H:i');
                         $set('end_time', $nuevaHora);
                     }
                 }),

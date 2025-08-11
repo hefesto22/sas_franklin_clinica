@@ -90,18 +90,6 @@ class ClienteResource extends Resource
                 ])
                 ->default('activo'),
 
-            Forms\Components\FileUpload::make('imagenes_upload')
-                ->label('Imágenes del cliente')
-                ->multiple()
-                ->image()
-                ->directory('clientes')
-                ->preserveFilenames()
-                ->visibility('public')
-                ->maxFiles(7)
-                ->columnSpanFull()
-                ->helperText('Puedes subir hasta 7 imágenes (opcional)')
-                ->dehydrated(false), // <- evita que se guarde en la tabla principal
-
 
         ]);
     }
