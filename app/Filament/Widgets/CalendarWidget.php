@@ -16,6 +16,10 @@ use App\Helpers\HorarioHelper;
 use Saade\FilamentFullCalendar\Actions;
 use Saade\FilamentFullCalendar\Actions\CreateAction;
 
+use Filament\Forms\Get;
+use Filament\Forms\Set;
+
+
 class CalendarWidget extends FullCalendarWidget
 {
     public Model | string | null $model = Event::class;
@@ -23,10 +27,57 @@ class CalendarWidget extends FullCalendarWidget
     protected function headerActions(): array
     {
         return [
-            \Filament\Actions\Action::make('crear')
+            Actions\CreateAction::make()
                 ->label('Crear evento')
-                ->url(route('filament.admin.resources.events.create'))
                 ->icon('heroicon-o-plus')
+
+                // 👉 Usa el schema COMPLETO para crear (con Teléfono, Fecha, Hora, etc.)
+                ->form(fn() => $this->getCreateFormSchema())
+
+                ->mountUsing(function (Forms\Form $form, array $arguments) {
+                    $form->fill([
+                        'start_date' => isset($arguments['start'])
+                            ? \Illuminate\Support\Carbon::parse($arguments['start'])->format('Y-m-d')
+                            : now()->format('Y-m-d'),
+                        'start_time' => isset($arguments['start'])
+                            ? \Illuminate\Support\Carbon::parse($arguments['start'])->format('H:i')
+                            : null,
+                        'end_time'   => isset($arguments['end'])
+                            ? \Illuminate\Support\Carbon::parse($arguments['end'])->format('H:i')
+                            : null,
+                    ]);
+                })
+                ->mutateFormDataUsing(function (array $data): array {
+                    $start = \Illuminate\Support\Carbon::parse("{$data['start_date']} {$data['start_time']}:00");
+                    $end   = isset($data['end_time'])
+                        ? \Illuminate\Support\Carbon::parse("{$data['start_date']} {$data['end_time']}:00")
+                        : (clone $start)->addMinutes(30);
+
+                    $data['start_at'] = $start;
+                    $data['end_at']   = $end;
+
+                    unset($data['start_date'], $data['start_time'], $data['end_time']);
+
+                    $data['estado']     = $data['estado'] ?? 'Pendiente';
+                    $data['created_by'] = \Illuminate\Support\Facades\Auth::id(); // 👈 AQUI
+
+                    // (si tu tabla también requiere usuario_id)
+                    // $data['usuario_id'] = $data['usuario_id'] ?? \Illuminate\Support\Facades\Auth::id();
+
+                    return $data;
+                })
+
+                ->using(function (array $data) {
+                    $especialidades = $data['especialidades'] ?? [];
+                    $servicios      = $data['servicios'] ?? [];
+                    unset($data['especialidades'], $data['servicios']);
+
+                    $event = \App\Models\Event::create($data);
+                    if ($especialidades) $event->especialidades()->sync($especialidades);
+                    if ($servicios)      $event->servicios()->sync($servicios);
+
+                    return $event;
+                }),
         ];
     }
 
@@ -414,5 +465,116 @@ class CalendarWidget extends FullCalendarWidget
         ]);
     }
 
-    //empece a cambiar
+    // aca comienza la maravila
+    protected function getCreateFormSchema(): array
+    {
+        return [
+            Forms\Components\Grid::make([
+                'default' => 1,   // 1 columna en pantallas pequeñas
+                'md'      => 2,   // 2 columnas desde md en adelante
+            ])->schema([
+
+                // Fila 1
+                Forms\Components\Select::make('cliente_id')
+                    ->label('Cliente')
+                    ->searchable()
+                    ->required()
+                    ->getSearchResultsUsing(
+                        fn(string $search) =>
+                        \App\Models\Cliente::query()
+                            ->where('nombre', 'like', "%{$search}%")
+                            ->orWhere('dni', 'like', "%{$search}%")
+                            ->limit(5)
+                            ->pluck('nombre', 'id')
+                    )
+                    ->getOptionLabelUsing(fn($value) => \App\Models\Cliente::find($value)?->nombre)
+                    ->reactive()
+                    ->afterStateUpdated(function ($state, Forms\Get|Forms\Set $set) {
+                        if ($state) {
+                            $cli = \App\Models\Cliente::find($state);
+                            $set('telefono', $cli?->telefono);
+                        }
+                    }),
+
+                Forms\Components\TextInput::make('telefono')
+                    ->label('Teléfono')
+                    ->tel()
+                    ->disabled()
+                    ->dehydrated(true),
+
+                // Fila 2
+                Forms\Components\Select::make('especialidades')
+                    ->label('Especialidades')
+                    ->multiple()
+                    ->searchable()
+                    ->preload()
+                    ->options(\App\Models\Especialidad::pluck('nombre', 'id'))
+                    ->required()
+                    ->reactive()
+                    ->afterStateUpdated(fn(Forms\Set $set) => $set('servicios', [])),
+
+                Forms\Components\Select::make('servicios')
+                    ->label('Servicios')
+                    ->multiple()
+                    ->searchable()
+                    ->preload()
+                    ->required()
+                    ->reactive()
+                    ->disabled(fn(Forms\Get $get) => empty($get('especialidades')))
+                    ->relationship(
+                        name: 'servicios',
+                        titleAttribute: 'nombre',
+                        modifyQueryUsing: fn($query, Forms\Get $get) =>
+                        $query->whereIn('especialidad_id', $get('especialidades') ?: [-1])
+                    ),
+
+                // Fila 3
+                Forms\Components\Select::make('consultorio_id')
+                    ->label('Consultorio')
+                    ->options(\App\Models\Consultorio::pluck('nombre', 'id'))
+                    ->searchable()
+                    ->required()
+                    ->reactive(),
+
+                Forms\Components\DatePicker::make('start_date')
+                    ->label('Fecha')
+                    ->required()
+                    ->reactive()
+                    ->native(false)
+                    ->minDate(now())
+                    ->rule(function () {
+                        return function (string $attribute, $value, $fail) {
+                            $fecha = \Illuminate\Support\Carbon::parse($value);
+                            if ($fecha->isSunday()) {
+                                $fail('Los domingos no se trabaja. Por favor seleccione otro día.');
+                            }
+                        };
+                    }),
+
+                // Fila 4
+                Forms\Components\Select::make('start_time')
+                    ->label('Hora disponible')
+                    ->required()
+                    ->options(fn(Forms\Get $get) => \App\Helpers\HorarioHelper::getHorasDisponibles(
+                        $get('start_date'),
+                        $get('consultorio_id')
+                    ))
+                    ->disabled(fn(Forms\Get $get) => !$get('start_date') || !$get('consultorio_id'))
+                    ->reactive()
+                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                        if ($state) {
+                            $h = \Illuminate\Support\Carbon::createFromFormat('H:i', $state);
+                            $set('end_time', $h->copy()->addMinutes(30)->format('H:i'));
+                        }
+                    }),
+
+                Forms\Components\TimePicker::make('end_time')
+                    ->label('Hora de finalización')
+                    ->required()
+                    ->disabled()
+                    ->seconds(false)
+                    ->step(20),
+            ]),
+        ];
+    }
 }

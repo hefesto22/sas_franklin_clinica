@@ -104,7 +104,7 @@ class ClienteResource extends Resource
                 Tables\Columns\TextColumn::make('estado')
                     ->badge()
                     ->color(fn(string $state) => $state === 'activo' ? 'success' : 'gray'),
-                Tables\Columns\TextColumn::make('createdBy.name')->label('Creado por')->sortable(),
+                Tables\Columns\TextColumn::make('creador.name')->label('Creado por')->sortable(),
                 Tables\Columns\TextColumn::make('created_at')->label('Registrado')->date()->sortable(),
             ])
             ->actions([

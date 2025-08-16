@@ -60,7 +60,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->plugin(
                 FilamentFullCalendarPlugin::make()
-                ->editable()
+                ->plugins(['dayGrid', 'timeGrid', 'interaction']) // ← importante
                 ->selectable(),
 
             );
